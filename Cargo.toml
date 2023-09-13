@@ -3,6 +3,15 @@ name = "libmonado-rs"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+bindgen = "0.68.1"
+cmake = "0.1.49"
+convert_case = "0.6.0"
 
 [dependencies]
+dlopen2 = "0.6.1"
+flagset = "0.4.4"
+semver = "1.0.18"
+
+[dev-dependencies]
+clap = { version = "4.4.3", features = ["derive"] }
