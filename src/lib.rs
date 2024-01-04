@@ -84,21 +84,21 @@ impl Monado {
 	//
 	// @param root Opaque libmonado state
 	// @param role_name Name of the role
-	// @param out_device_id Pointer to populate with device id
+	// @param out_index Pointer to populate with device id
 	pub fn device_from_role<'m>(&'m self, role_name: &str) -> Result<Device<'m>, MndResult> {
 		let c_name = CString::new(role_name).unwrap();
-		let mut device_id = -1;
+		let mut device_index = -1;
 
 		unsafe {
 			self.api
-				.mnd_root_get_device_from_role(self.root, c_name.as_ptr(), &mut device_id)
+				.mnd_root_get_device_from_role(self.root, c_name.as_ptr(), &mut device_index)
 				.to_result()?
 		};
 		let mut id = 0;
 		let mut c_name: *const c_char = std::ptr::null_mut();
 		unsafe {
 			self.api
-				.mnd_root_get_device_info(self.root, device_id as u32, &mut id, &mut c_name)
+				.mnd_root_get_device_info(self.root, device_index as u32, &mut id, &mut c_name)
 				.to_result()?
 		};
 		let name = unsafe {

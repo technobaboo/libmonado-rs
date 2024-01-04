@@ -12,6 +12,7 @@ pub enum MndResult {
 	ErrorConnectingFailed = -3,
 	ErrorOperationFailed = -4,
 	ErrorRecenteringNotSupported = -5,
+	ErrorInvalidProperty = -6,
 }
 impl MndResult {
 	pub fn to_result(self) -> Result<(), MndResult> {
@@ -34,6 +35,15 @@ flagset::flags! {
 		ClientIoActive = 32,
 	}
 }
+
+#[repr(i32)]
+#[doc = " A property to get from a thing (currently only devices)."]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum MndProperty {
+	PropertyNameString = 1,
+	PropertySerialString = 2,
+}
+
 
 #[doc = " Opaque type for libmonado state"]
 pub type MndRootPtr = *mut c_void;
@@ -67,13 +77,43 @@ pub struct MonadoApi {
 	mnd_root_get_device_info: unsafe extern "C" fn(
 		root: MndRootPtr,
 		device_index: u32,
-		out_device_id: *mut u32,
+		out_index: *mut u32,
 		out_dev_name: *mut *const ::std::os::raw::c_char,
 	) -> MndResult,
 	mnd_root_get_device_from_role: unsafe extern "C" fn(
 		root: MndRootPtr,
 		role_name: *const ::std::os::raw::c_char,
-		out_device_id: *mut i32,
+		out_index: *mut i32,
 	) -> MndResult,
 	mnd_root_recenter_local_spaces: unsafe extern "C" fn(root: MndRootPtr) -> MndResult,
+	mnd_root_get_device_info_bool: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		mnd_property_t: MndProperty,
+		out_bool: *mut bool,
+	) -> MndResult,
+	mnd_root_get_device_info_i32: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		mnd_property_t: MndProperty,
+		out_i32: *mut i32,
+	) -> MndResult,
+	mnd_root_get_device_info_u32: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		mnd_property_t: MndProperty,
+		out_u32: *mut u32,
+	) -> MndResult,
+	mnd_root_get_device_info_float: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		mnd_property_t: MndProperty,
+		out_float: *mut f32,
+	) -> MndResult,
+	mnd_root_get_device_info_string: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		mnd_property_t: MndProperty,
+		out_string: *const ::std::os::raw::c_char,
+	) -> MndResult,
 }
