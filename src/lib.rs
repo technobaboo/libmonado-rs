@@ -10,6 +10,7 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::vec;
 use sys::ClientState;
+use sys::MndProperty;
 use sys::MndResult;
 use sys::MndRootPtr;
 use sys::MonadoApi;
@@ -109,7 +110,7 @@ impl Monado {
 		};
 
 		Ok(Device {
-			_monado: self,
+			monado: self,
 			id,
 			name,
 		})
@@ -138,7 +139,7 @@ impl Monado {
 					.to_owned()
 			};
 			device.replace(Device {
-				_monado: self,
+				monado: self,
 				id,
 				name,
 			});
@@ -214,9 +215,66 @@ impl Client<'_> {
 
 #[derive(Clone)]
 pub struct Device<'m> {
-	_monado: &'m Monado,
+	monado: &'m Monado,
 	pub id: u32,
 	pub name: String,
+}
+impl Device<'_> {
+	pub fn get_info_bool(&self, property: MndProperty) -> Result<bool, MndResult> {
+		let mut value: bool = Default::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_info_bool(self.monado.root, self.id, property, &mut value)
+				.to_result()?
+		}
+		Ok(value)
+	}
+	pub fn get_info_u32(&self, property: MndProperty) -> Result<u32, MndResult> {
+		let mut value: u32 = Default::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_info_u32(self.monado.root, self.id, property, &mut value)
+				.to_result()?
+		}
+		Ok(value)
+	}
+	pub fn get_info_i32(&self, property: MndProperty) -> Result<i32, MndResult> {
+		let mut value: i32 = Default::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_info_i32(self.monado.root, self.id, property, &mut value)
+				.to_result()?
+		}
+		Ok(value)
+	}
+	pub fn get_info_f32(&self, property: MndProperty) -> Result<f32, MndResult> {
+		let mut value: f32 = Default::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_info_float(self.monado.root, self.id, property, &mut value)
+				.to_result()?
+		}
+		Ok(value)
+	}
+	pub fn get_info_string(&self, property: MndProperty) -> Result<String, MndResult> {
+		let value = CString::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_info_string(
+					self.monado.root,
+					self.id,
+					property,
+					value.as_ptr(),
+				)
+				.to_result()?
+		}
+		Ok(value.to_string_lossy().to_string())
+	}
 }
 impl Debug for Device<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
