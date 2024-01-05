@@ -220,6 +220,9 @@ pub struct Device<'m> {
 	pub name: String,
 }
 impl Device<'_> {
+	pub fn serial(&self) -> Result<String, MndResult> {
+		self.get_info_string(MndProperty::PropertySerialString)
+	}
 	pub fn get_info_bool(&self, property: MndProperty) -> Result<bool, MndResult> {
 		let mut value: bool = Default::default();
 		unsafe {

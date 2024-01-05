@@ -44,7 +44,6 @@ pub enum MndProperty {
 	PropertySerialString = 2,
 }
 
-
 #[doc = " Opaque type for libmonado state"]
 pub type MndRootPtr = *mut c_void;
 
