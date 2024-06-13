@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [build-dependencies]
-bindgen = "0.68.1"
+bindgen = "0.69.4"
 cmake = "0.1.49"
 convert_case = "0.6.0"
 
 [dependencies]
-dlopen2 = "0.6.1"
+dlopen2 = "0.7.0"
 flagset = "0.4.4"
 semver = "1.0.18"
 
