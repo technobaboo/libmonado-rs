@@ -3,11 +3,13 @@ mod sys;
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
 use semver::{Version, VersionReq};
+use serde::Deserialize;
 use std::ffi::c_char;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::vec;
 use sys::ClientState;
 use sys::MndProperty;
@@ -27,11 +29,43 @@ fn get_api_version(api: &Container<MonadoApi>) -> Version {
 	Version::new(major as u64, minor as u64, patch as u64)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct RuntimeJSON {
+	runtime: RuntimeInfo,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct RuntimeInfo {
+	#[serde(rename = "library_path")]
+	_library_path: PathBuf,
+	#[serde(rename = "MND_libmonado_path")]
+	libmonado_path: Option<PathBuf>,
+}
+
 pub struct Monado {
 	api: Container<MonadoApi>,
 	root: MndRootPtr,
 }
 impl Monado {
+	pub fn auto_connect() -> Result<Self, String> {
+		let active_runtime = xdg::BaseDirectories::new()
+			.map_err(|e| format!("{e:?}"))?
+			.find_config_files("openxr/1/active_runtime.json")
+			.filter_map(|p| p.canonicalize().ok())
+			.filter_map(|p| Some((std::fs::read_to_string(&p).ok()?, p)))
+			.filter_map(|(j, p)| Some((serde_json::from_str::<RuntimeJSON>(&j).ok()?, p)))
+			.next();
+
+		let Some((runtime_json, mut runtime_path)) = active_runtime else {
+			return Err("Couldn't find the actively running runtime".to_string());
+		};
+		runtime_path.pop();
+		let Some(libmonado_path) = runtime_json.runtime.libmonado_path else {
+			return Err("Couldn't find libmonado path in active runtime json".to_string());
+		};
+
+		let path = runtime_path.join(libmonado_path);
+		Self::create(path).map_err(|e| format!("{e:?}"))
+	}
 	pub fn create<S: AsRef<OsStr>>(libmonado_so: S) -> Result<Self, MndResult> {
 		let api = unsafe { Container::<MonadoApi>::load(libmonado_so) }
 			.map_err(|_| MndResult::ErrorConnectingFailed)?;
@@ -56,7 +90,7 @@ impl Monado {
 		}
 	}
 
-	pub fn clients<'m>(&'m self) -> Result<impl IntoIterator<Item = Client<'m>>, MndResult> {
+	pub fn clients(&self) -> Result<impl IntoIterator<Item = Client<'_>>, MndResult> {
 		unsafe {
 			self.api
 				.mnd_root_update_client_list(self.root)
@@ -116,7 +150,7 @@ impl Monado {
 		})
 	}
 
-	pub fn devices<'m>(&'m self) -> Result<impl IntoIterator<Item = Device<'m>>, MndResult> {
+	pub fn devices(&self) -> Result<impl IntoIterator<Item = Device<'_>>, MndResult> {
 		let mut device_count = 0;
 		unsafe {
 			self.api
@@ -288,15 +322,22 @@ impl Debug for Device<'_> {
 	}
 }
 
-// #[test]
-// fn test_dump_info() {
-// 	dbg!(get_api_version());
-// 	let monado = Monado::create().unwrap();
-// 	for mut client in monado.clients().unwrap() {
-// 		println!(
-// 			"Client name is {} and state is {:?}",
-// 			client.name().unwrap(),
-// 			client.state().unwrap()
-// 		)
-// 	}
-// }
+#[test]
+fn test_dump_info() {
+	let monado = Monado::auto_connect().unwrap();
+	dbg!(monado.get_api_version());
+	for mut client in monado.clients().unwrap() {
+		println!(
+			"Client name is {} and state is {:?}",
+			client.name().unwrap(),
+			client.state().unwrap()
+		)
+	}
+	for device in monado.devices().unwrap() {
+		println!(
+			"Device name is {} and state is {:?}",
+			device.name,
+			device.serial()
+		);
+	}
+}
