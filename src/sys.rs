@@ -44,8 +44,8 @@ flagset::flags! {
 #[doc = " A property to get from a thing (currently only devices)."]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum MndProperty {
-	PropertyNameString = 1,
-	PropertySerialString = 2,
+	PropertyNameString = 0,
+	PropertySerialString = 1,
 }
 
 #[doc = " Opaque type for libmonado state"]

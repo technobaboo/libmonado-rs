@@ -125,18 +125,18 @@ impl Monado {
 	// @param out_index Pointer to populate with device id
 	pub fn device_from_role<'m>(&'m self, role_name: &str) -> Result<Device<'m>, MndResult> {
 		let c_name = CString::new(role_name).unwrap();
-		let mut device_index = -1;
+		let mut index = -1;
 
 		unsafe {
 			self.api
-				.mnd_root_get_device_from_role(self.root, c_name.as_ptr(), &mut device_index)
+				.mnd_root_get_device_from_role(self.root, c_name.as_ptr(), &mut index)
 				.to_result()?
 		};
 		let mut id = 0;
 		let mut c_name: *const c_char = std::ptr::null_mut();
 		unsafe {
 			self.api
-				.mnd_root_get_device_info(self.root, device_index as u32, &mut id, &mut c_name)
+				.mnd_root_get_device_info(self.root, index as u32, &mut id, &mut c_name)
 				.to_result()?
 		};
 		let name = unsafe {
@@ -148,6 +148,7 @@ impl Monado {
 
 		Ok(Device {
 			monado: self,
+			index: index as u32,
 			id,
 			name,
 		})
@@ -162,11 +163,12 @@ impl Monado {
 		};
 		let mut devices: Vec<Option<Device>> = vec::from_elem(None, count as usize);
 		for (index, device) in devices.iter_mut().enumerate() {
+			let index = index as u32;
 			let mut id = 0;
 			let mut c_name: *const c_char = std::ptr::null_mut();
 			unsafe {
 				self.api
-					.mnd_root_get_device_info(self.root, index as u32, &mut id, &mut c_name)
+					.mnd_root_get_device_info(self.root, index, &mut id, &mut c_name)
 					.to_result()?
 			};
 			let name = unsafe {
@@ -177,6 +179,7 @@ impl Monado {
 			};
 			device.replace(Device {
 				monado: self,
+				index,
 				id,
 				name,
 			});
@@ -253,6 +256,7 @@ impl Client<'_> {
 #[derive(Clone)]
 pub struct Device<'m> {
 	monado: &'m Monado,
+	pub index: u32,
 	pub id: u32,
 	pub name: String,
 }
@@ -265,7 +269,7 @@ impl Device<'_> {
 		unsafe {
 			self.monado
 				.api
-				.mnd_root_get_device_info_bool(self.monado.root, self.id, property, &mut value)
+				.mnd_root_get_device_info_bool(self.monado.root, self.index, property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
@@ -275,7 +279,7 @@ impl Device<'_> {
 		unsafe {
 			self.monado
 				.api
-				.mnd_root_get_device_info_u32(self.monado.root, self.id, property, &mut value)
+				.mnd_root_get_device_info_u32(self.monado.root, self.index, property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
@@ -285,7 +289,7 @@ impl Device<'_> {
 		unsafe {
 			self.monado
 				.api
-				.mnd_root_get_device_info_i32(self.monado.root, self.id, property, &mut value)
+				.mnd_root_get_device_info_i32(self.monado.root, self.index, property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
@@ -295,7 +299,7 @@ impl Device<'_> {
 		unsafe {
 			self.monado
 				.api
-				.mnd_root_get_device_info_float(self.monado.root, self.id, property, &mut value)
+				.mnd_root_get_device_info_float(self.monado.root, self.index, property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
@@ -307,7 +311,7 @@ impl Device<'_> {
 				.api
 				.mnd_root_get_device_info_string(
 					self.monado.root,
-					self.id,
+					self.index,
 					property,
 					value.as_ptr(),
 				)
@@ -336,7 +340,7 @@ fn test_dump_info() {
 		println!();
 	}
 	for device in monado.devices().unwrap() {
-		let _ = dbg!(device.id, device.serial());
+		let _ = dbg!(device.id, &device.name, device.serial());
 		println!();
 	}
 	for tracking_origin in monado.tracking_origins().unwrap() {
