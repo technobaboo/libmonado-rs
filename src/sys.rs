@@ -1,6 +1,9 @@
 use dlopen2::wrapper::WrapperApi;
 use std::ffi::c_void;
 use std::fmt::Debug;
+use std::os::raw::c_char;
+
+use crate::space::{MndPose, ReferenceSpaceType};
 
 #[repr(i32)]
 #[doc = " Result codes for operations, negative are errors, zero or positives are\n success."]
@@ -13,6 +16,7 @@ pub enum MndResult {
 	ErrorOperationFailed = -4,
 	ErrorRecenteringNotSupported = -5,
 	ErrorInvalidProperty = -6,
+	ErrorInvalidOperation = -7,
 }
 impl MndResult {
 	pub fn to_result(self) -> Result<(), MndResult> {
@@ -114,5 +118,30 @@ pub struct MonadoApi {
 		device_index: u32,
 		mnd_property_t: MndProperty,
 		out_string: *const ::std::os::raw::c_char,
+	) -> MndResult,
+
+	mnd_root_get_reference_space_offset: unsafe extern "C" fn(
+		root: MndRootPtr,
+		type_: ReferenceSpaceType,
+		out_offset: *mut MndPose,
+	) -> MndResult,
+	mnd_root_set_reference_space_offset: unsafe extern "C" fn(
+		root: MndRootPtr,
+		type_: ReferenceSpaceType,
+		offset: *const MndPose,
+	) -> MndResult,
+	mnd_root_get_tracking_origin_offset: unsafe extern "C" fn(
+		root: MndRootPtr,
+		origin_id: u32,
+		out_offset: *mut MndPose,
+	) -> MndResult,
+	mnd_root_set_tracking_origin_offset:
+		unsafe extern "C" fn(root: MndRootPtr, origin_id: u32, offset: *const MndPose) -> MndResult,
+	mnd_root_get_tracking_origin_count:
+		unsafe extern "C" fn(root: MndRootPtr, out_track_count: *mut u32) -> MndResult,
+	mnd_root_get_tracking_origin_name: unsafe extern "C" fn(
+		root: MndRootPtr,
+		origin_id: u32,
+		out_string: *mut *const c_char,
 	) -> MndResult,
 }

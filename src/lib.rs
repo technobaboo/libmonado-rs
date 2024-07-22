@@ -1,4 +1,7 @@
+mod space;
 mod sys;
+
+pub use space::*;
 
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
@@ -18,7 +21,7 @@ use sys::MndRootPtr;
 use sys::MonadoApi;
 
 fn crate_api_version() -> VersionReq {
-	VersionReq::parse("=1.2.0").unwrap()
+	VersionReq::parse("^1.3.0").unwrap()
 }
 fn get_api_version(api: &Container<MonadoApi>) -> Version {
 	let mut major = 0;
@@ -96,13 +99,13 @@ impl Monado {
 				.mnd_root_update_client_list(self.root)
 				.to_result()?
 		};
-		let mut client_count = 0;
+		let mut count = 0;
 		unsafe {
 			self.api
-				.mnd_root_get_number_clients(self.root, &mut client_count)
+				.mnd_root_get_number_clients(self.root, &mut count)
 				.to_result()?
 		};
-		let mut clients: Vec<Option<Client>> = vec::from_elem(None, client_count as usize);
+		let mut clients: Vec<Option<Client>> = vec::from_elem(None, count as usize);
 		for (index, client) in clients.iter_mut().enumerate() {
 			let mut id = 0;
 			unsafe {
@@ -151,13 +154,13 @@ impl Monado {
 	}
 
 	pub fn devices(&self) -> Result<impl IntoIterator<Item = Device<'_>>, MndResult> {
-		let mut device_count = 0;
+		let mut count = 0;
 		unsafe {
 			self.api
-				.mnd_root_get_device_count(self.root, &mut device_count)
+				.mnd_root_get_device_count(self.root, &mut count)
 				.to_result()?
 		};
-		let mut devices: Vec<Option<Device>> = vec::from_elem(None, device_count as usize);
+		let mut devices: Vec<Option<Device>> = vec::from_elem(None, count as usize);
 		for (index, device) in devices.iter_mut().enumerate() {
 			let mut id = 0;
 			let mut c_name: *const c_char = std::ptr::null_mut();
@@ -326,18 +329,22 @@ impl Debug for Device<'_> {
 fn test_dump_info() {
 	let monado = Monado::auto_connect().unwrap();
 	dbg!(monado.get_api_version());
+	println!();
+
 	for mut client in monado.clients().unwrap() {
-		println!(
-			"Client name is {} and state is {:?}",
-			client.name().unwrap(),
-			client.state().unwrap()
-		)
+		dbg!(client.name().unwrap(), client.state().unwrap());
+		println!();
 	}
 	for device in monado.devices().unwrap() {
-		println!(
-			"Device name is {} and state is {:?}",
-			device.name,
-			device.serial()
+		let _ = dbg!(device.id, device.serial());
+		println!();
+	}
+	for tracking_origin in monado.tracking_origins().unwrap() {
+		dbg!(
+			tracking_origin.id,
+			&tracking_origin.name,
+			tracking_origin.get_offset().unwrap()
 		);
+		println!();
 	}
 }
