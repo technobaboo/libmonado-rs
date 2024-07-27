@@ -46,6 +46,13 @@ struct RuntimeInfo {
 	libmonado_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BatteryStatus {
+	pub present: bool,
+	pub charging: bool,
+	pub charge: f32,
+}
+
 pub struct Monado {
 	api: Container<MonadoApi>,
 	root: MndRootPtr,
@@ -272,6 +279,28 @@ pub struct Device<'m> {
 	pub name: String,
 }
 impl Device<'_> {
+	pub fn battery_status(&self) -> Result<BatteryStatus, MndResult> {
+		let mut present: bool = Default::default();
+		let mut charging: bool = Default::default();
+		let mut charge: f32 = Default::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_battery_status(
+					self.monado.root,
+					self.index,
+					&mut present,
+					&mut charging,
+					&mut charge,
+				)
+				.to_result()?;
+		}
+		Ok(BatteryStatus {
+			present,
+			charging,
+			charge,
+		})
+	}
 	pub fn serial(&self) -> Result<String, MndResult> {
 		self.get_info_string(MndProperty::PropertySerialString)
 	}
