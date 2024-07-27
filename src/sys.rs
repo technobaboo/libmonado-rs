@@ -144,4 +144,11 @@ pub struct MonadoApi {
 		origin_id: u32,
 		out_string: *mut *const c_char,
 	) -> MndResult,
+	mnd_root_get_device_battery_status: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		out_present: *mut bool,
+		out_charging: *mut bool,
+		out_charge: *mut f32,
+	) -> MndResult,
 }
