@@ -7,11 +7,13 @@ use dlopen2::wrapper::Container;
 use flagset::FlagSet;
 use semver::{Version, VersionReq};
 use serde::Deserialize;
+use std::env;
 use std::ffi::c_char;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::fs;
 use std::path::PathBuf;
 use std::vec;
 use sys::ClientState;
@@ -50,6 +52,15 @@ pub struct Monado {
 }
 impl Monado {
 	pub fn auto_connect() -> Result<Self, String> {
+		if let Ok(libmonado_path) = env::var("LIBMONADO_PATH") {
+			match fs::metadata(&libmonado_path) {
+				Ok(metadata) if metadata.is_file() => {
+					return Self::create(libmonado_path).map_err(|e| format!("{e:?}"))
+				}
+				_ => return Err("LIBMONADO_PATH does not point to a valid file".into()),
+			}
+		}
+
 		let active_runtime = xdg::BaseDirectories::new()
 			.map_err(|e| format!("{e:?}"))?
 			.find_config_files("openxr/1/active_runtime.json")
