@@ -150,6 +150,9 @@ impl Monado {
 				.mnd_root_get_device_from_role(self.root, c_name.as_ptr(), &mut index)
 				.to_result()?
 		};
+		if index == -1 {
+			return Err(MndResult::ErrorInvalidValue);
+		}
 		let mut id = 0;
 		let mut c_name: *const c_char = std::ptr::null_mut();
 		unsafe {
