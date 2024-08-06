@@ -53,6 +53,31 @@ pub struct BatteryStatus {
 	pub charge: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DeviceRole {
+	Head,
+	Eyes,
+	Left,
+	Right,
+	Gamepad,
+	HandTrackingLeft,
+	HandTrackingRight,
+}
+
+impl From<DeviceRole> for &'static str {
+	fn from(value: DeviceRole) -> Self {
+		match value {
+			DeviceRole::Head => "head",
+			DeviceRole::Eyes => "eyes",
+			DeviceRole::Left => "left",
+			DeviceRole::Right => "right",
+			DeviceRole::Gamepad => "gamepad",
+			DeviceRole::HandTrackingLeft => "hand-tracking-left",
+			DeviceRole::HandTrackingRight => "hand-tracking-right",
+		}
+	}
+}
+
 pub struct Monado {
 	api: Container<MonadoApi>,
 	root: MndRootPtr,
@@ -136,12 +161,7 @@ impl Monado {
 		Ok(clients.into_iter().flatten())
 	}
 
-	// Get device id from role name
-	//
-	// @param root Opaque libmonado state
-	// @param role_name Name of the role
-	// @param out_index Pointer to populate with device id
-	pub fn device_from_role<'m>(&'m self, role_name: &str) -> Result<Device<'m>, MndResult> {
+	fn device_index_from_role_str(&self, role_name: &str) -> Result<u32, MndResult> {
 		let c_name = CString::new(role_name).unwrap();
 		let mut index = -1;
 
@@ -153,11 +173,21 @@ impl Monado {
 		if index == -1 {
 			return Err(MndResult::ErrorInvalidValue);
 		}
-		let mut id = 0;
+		Ok(index as u32)
+	}
+
+	// Get device id from role name
+	//
+	// @param root Opaque libmonado state
+	// @param role_name Name of the role
+	// @param out_index Pointer to populate with device id
+	fn device_from_role_str<'m>(&'m self, role_name: &str) -> Result<Device<'m>, MndResult> {
+		let index = self.device_index_from_role_str(role_name)?;
 		let mut c_name: *const c_char = std::ptr::null_mut();
+		let mut id = 0;
 		unsafe {
 			self.api
-				.mnd_root_get_device_info(self.root, index as u32, &mut id, &mut c_name)
+				.mnd_root_get_device_info(self.root, index, &mut id, &mut c_name)
 				.to_result()?
 		};
 		let name = unsafe {
@@ -169,10 +199,18 @@ impl Monado {
 
 		Ok(Device {
 			monado: self,
-			index: index as u32,
+			index,
 			id,
 			name,
 		})
+	}
+
+	pub fn device_index_from_role(&self, role: DeviceRole) -> Result<u32, MndResult> {
+		self.device_index_from_role_str(role.into())
+	}
+
+	pub fn device_from_role(&self, role: DeviceRole) -> Result<Device<'_>, MndResult> {
+		self.device_from_role_str(role.into())
 	}
 
 	pub fn devices(&self) -> Result<impl IntoIterator<Item = Device<'_>>, MndResult> {
