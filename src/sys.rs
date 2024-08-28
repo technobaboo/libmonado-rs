@@ -1,7 +1,7 @@
 use dlopen2::wrapper::WrapperApi;
-use std::ffi::c_void;
 use std::fmt::Debug;
 use std::os::raw::c_char;
+use std::{ffi::c_void, fmt::Display};
 
 use crate::space::{MndPose, ReferenceSpaceType};
 
@@ -25,6 +25,24 @@ impl MndResult {
 		} else {
 			Err(self)
 		}
+	}
+}
+
+impl std::error::Error for MndResult {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		None
+	}
+	fn cause(&self) -> Option<&dyn std::error::Error> {
+		None
+	}
+	fn description(&self) -> &str {
+		"std::error::Error::description() is deprecated, use the Display impl instead."
+	}
+}
+
+impl Display for MndResult {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{:?}", self)
 	}
 }
 
