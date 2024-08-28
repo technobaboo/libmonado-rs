@@ -22,7 +22,7 @@ fn main() {
 		println!();
 	}
 	for device in monado.devices().unwrap() {
-		let _ = dbg!(device.id, device.serial());
+		let _ = dbg!(device.name_id, device.serial());
 		println!();
 	}
 	for tracking_origin in monado.tracking_origins().unwrap() {
