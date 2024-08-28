@@ -117,7 +117,7 @@ pub struct MonadoApi {
 		root: MndRootPtr,
 		device_index: u32,
 		mnd_property_t: MndProperty,
-		out_string: *const ::std::os::raw::c_char,
+		out_string: *mut *mut ::std::os::raw::c_char,
 	) -> MndResult,
 
 	mnd_root_get_reference_space_offset: unsafe extern "C" fn(

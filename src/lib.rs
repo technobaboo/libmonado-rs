@@ -18,6 +18,7 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs;
 use std::path::PathBuf;
+use std::ptr;
 use std::vec;
 use sys::MndRootPtr;
 use sys::MonadoApi;
@@ -387,7 +388,8 @@ impl Device<'_> {
 		Ok(value)
 	}
 	pub fn get_info_string(&self, property: MndProperty) -> Result<String, MndResult> {
-		let value = CString::default();
+		let mut cstr_ptr = ptr::null_mut();
+
 		unsafe {
 			self.monado
 				.api
@@ -395,11 +397,12 @@ impl Device<'_> {
 					self.monado.root,
 					self.index,
 					property,
-					value.as_ptr(),
+					&mut cstr_ptr,
 				)
 				.to_result()?
 		}
-		Ok(value.to_string_lossy().to_string())
+
+		unsafe { Ok(CStr::from_ptr(cstr_ptr).to_string_lossy().to_string()) }
 	}
 }
 impl Debug for Device<'_> {
