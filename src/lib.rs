@@ -2,6 +2,9 @@ mod space;
 mod sys;
 
 pub use space::*;
+pub use sys::ClientState;
+pub use sys::MndProperty;
+pub use sys::MndResult;
 
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
@@ -16,9 +19,6 @@ use std::fmt::Debug;
 use std::fs;
 use std::path::PathBuf;
 use std::vec;
-use sys::ClientState;
-use sys::MndProperty;
-use sys::MndResult;
 use sys::MndRootPtr;
 use sys::MonadoApi;
 
