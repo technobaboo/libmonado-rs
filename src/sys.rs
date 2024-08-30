@@ -64,6 +64,9 @@ flagset::flags! {
 pub enum MndProperty {
 	PropertyNameString = 0,
 	PropertySerialString = 1,
+	PropertyTrackingOriginU32 = 2,
+	PropertySupportsPositionBool = 3,
+	PropertySupportsOrientationBool = 4,
 }
 
 #[doc = " Opaque type for libmonado state"]
