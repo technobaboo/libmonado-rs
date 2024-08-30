@@ -1,6 +1,7 @@
 mod space;
 mod sys;
 
+pub use semver::Version;
 pub use space::*;
 pub use sys::ClientState;
 pub use sys::MndProperty;
@@ -8,7 +9,7 @@ pub use sys::MndResult;
 
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
-use semver::{Version, VersionReq};
+use semver::VersionReq;
 use serde::Deserialize;
 use std::env;
 use std::ffi::c_char;
