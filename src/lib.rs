@@ -1,11 +1,15 @@
 mod space;
 mod sys;
 
+pub use semver::Version;
 pub use space::*;
+pub use sys::ClientState;
+pub use sys::MndProperty;
+pub use sys::MndResult;
 
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
-use semver::{Version, VersionReq};
+use semver::VersionReq;
 use serde::Deserialize;
 use std::env;
 use std::ffi::c_char;
@@ -15,10 +19,8 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs;
 use std::path::PathBuf;
+use std::ptr;
 use std::vec;
-use sys::ClientState;
-use sys::MndProperty;
-use sys::MndResult;
 use sys::MndRootPtr;
 use sys::MonadoApi;
 
@@ -184,10 +186,10 @@ impl Monado {
 	fn device_from_role_str<'m>(&'m self, role_name: &str) -> Result<Device<'m>, MndResult> {
 		let index = self.device_index_from_role_str(role_name)?;
 		let mut c_name: *const c_char = std::ptr::null_mut();
-		let mut id = 0;
+		let mut name_id = 0;
 		unsafe {
 			self.api
-				.mnd_root_get_device_info(self.root, index, &mut id, &mut c_name)
+				.mnd_root_get_device_info(self.root, index, &mut name_id, &mut c_name)
 				.to_result()?
 		};
 		let name = unsafe {
@@ -200,7 +202,7 @@ impl Monado {
 		Ok(Device {
 			monado: self,
 			index,
-			id,
+			name_id,
 			name,
 		})
 	}
@@ -223,11 +225,11 @@ impl Monado {
 		let mut devices: Vec<Option<Device>> = vec::from_elem(None, count as usize);
 		for (index, device) in devices.iter_mut().enumerate() {
 			let index = index as u32;
-			let mut id = 0;
+			let mut name_id = 0;
 			let mut c_name: *const c_char = std::ptr::null_mut();
 			unsafe {
 				self.api
-					.mnd_root_get_device_info(self.root, index, &mut id, &mut c_name)
+					.mnd_root_get_device_info(self.root, index, &mut name_id, &mut c_name)
 					.to_result()?
 			};
 			let name = unsafe {
@@ -239,7 +241,7 @@ impl Monado {
 			device.replace(Device {
 				monado: self,
 				index,
-				id,
+				name_id,
 				name,
 			});
 		}
@@ -316,7 +318,8 @@ impl Client<'_> {
 pub struct Device<'m> {
 	monado: &'m Monado,
 	pub index: u32,
-	pub id: u32,
+	/// non-unique numeric representation of device name, see: xrt_device_name
+	pub name_id: u32,
 	pub name: String,
 }
 impl Device<'_> {
@@ -386,7 +389,8 @@ impl Device<'_> {
 		Ok(value)
 	}
 	pub fn get_info_string(&self, property: MndProperty) -> Result<String, MndResult> {
-		let value = CString::default();
+		let mut cstr_ptr = ptr::null_mut();
+
 		unsafe {
 			self.monado
 				.api
@@ -394,17 +398,18 @@ impl Device<'_> {
 					self.monado.root,
 					self.index,
 					property,
-					value.as_ptr(),
+					&mut cstr_ptr,
 				)
 				.to_result()?
 		}
-		Ok(value.to_string_lossy().to_string())
+
+		unsafe { Ok(CStr::from_ptr(cstr_ptr).to_string_lossy().to_string()) }
 	}
 }
 impl Debug for Device<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Device")
-			.field("id", &self.id)
+			.field("id", &self.name_id)
 			.field("name", &self.name)
 			.finish()
 	}
@@ -421,7 +426,7 @@ fn test_dump_info() {
 		println!();
 	}
 	for device in monado.devices().unwrap() {
-		let _ = dbg!(device.id, &device.name, device.serial());
+		let _ = dbg!(device.name_id, &device.name, device.serial());
 		println!();
 	}
 	for tracking_origin in monado.tracking_origins().unwrap() {

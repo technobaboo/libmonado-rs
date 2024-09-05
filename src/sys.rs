@@ -1,7 +1,7 @@
 use dlopen2::wrapper::WrapperApi;
-use std::ffi::c_void;
 use std::fmt::Debug;
 use std::os::raw::c_char;
+use std::{ffi::c_void, fmt::Display};
 
 use crate::space::{MndPose, ReferenceSpaceType};
 
@@ -28,6 +28,24 @@ impl MndResult {
 	}
 }
 
+impl std::error::Error for MndResult {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		None
+	}
+	fn cause(&self) -> Option<&dyn std::error::Error> {
+		None
+	}
+	fn description(&self) -> &str {
+		"std::error::Error::description() is deprecated, use the Display impl instead."
+	}
+}
+
+impl Display for MndResult {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{:?}", self)
+	}
+}
+
 flagset::flags! {
 	#[doc = " Bitflags for client application state."]
 	pub enum ClientState: u32 {
@@ -46,6 +64,9 @@ flagset::flags! {
 pub enum MndProperty {
 	PropertyNameString = 0,
 	PropertySerialString = 1,
+	PropertyTrackingOriginU32 = 2,
+	PropertySupportsPositionBool = 3,
+	PropertySupportsOrientationBool = 4,
 }
 
 #[doc = " Opaque type for libmonado state"]
@@ -117,7 +138,7 @@ pub struct MonadoApi {
 		root: MndRootPtr,
 		device_index: u32,
 		mnd_property_t: MndProperty,
-		out_string: *const ::std::os::raw::c_char,
+		out_string: *mut *mut ::std::os::raw::c_char,
 	) -> MndResult,
 
 	mnd_root_get_reference_space_offset: unsafe extern "C" fn(
