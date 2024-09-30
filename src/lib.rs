@@ -95,15 +95,22 @@ impl Monado {
 			}
 		}
 
-		let active_runtime = xdg::BaseDirectories::new()
-			.map_err(|e| format!("{e:?}"))?
-			.find_config_files("openxr/1/active_runtime.json")
-			.filter_map(|p| p.canonicalize().ok())
-			.filter_map(|p| Some((std::fs::read_to_string(&p).ok()?, p)))
-			.filter_map(|(j, p)| Some((serde_json::from_str::<RuntimeJSON>(&j).ok()?, p)))
-			.next();
+		let override_runtime = std::env::var_os("XDG_RUNTIME_JSON").map(PathBuf::from);
+		let possible_config_files = xdg::BaseDirectories::new()
+			.ok()
+			.into_iter()
+			.flat_map(|b| b.find_config_files("openxr/1/active_runtime.json"));
+		let override_runtime = override_runtime
+			.into_iter()
+			.chain(possible_config_files)
+			.find_map(|p| {
+				Some((
+					serde_json::from_str::<RuntimeJSON>(&std::fs::read_to_string(&p).ok()?).ok()?,
+					p,
+				))
+			});
 
-		let Some((runtime_json, mut runtime_path)) = active_runtime else {
+		let Some((runtime_json, mut runtime_path)) = override_runtime else {
 			return Err("Couldn't find the actively running runtime".to_string());
 		};
 		runtime_path.pop();
