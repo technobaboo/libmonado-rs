@@ -1,6 +1,9 @@
 [package]
 name = "libmonado-rs"
-version = "0.1.0"
+description = "Rust bindings to the libmonado library that controls Monado from other processes"
+license = "MIT"
+readme = "README.md"
+version = "1.3.0"
 edition = "2021"
 
 [build-dependencies]
