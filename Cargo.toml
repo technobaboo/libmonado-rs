@@ -1,5 +1,5 @@
 [package]
-name = "libmonado-rs"
+name = "libmonado"
 description = "Rust bindings to the libmonado library that controls Monado from other processes"
 license = "MIT"
 repository = "https://github.com/technobaboo/libmonado-rs"
