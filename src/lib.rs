@@ -99,11 +99,11 @@ impl Monado {
 		let possible_config_files = xdg::BaseDirectories::new()
 			.ok()
 			.into_iter()
-			.flat_map(|b| b.find_config_files("openxr/1/active_runtime.json"));
+			.flat_map(|b| b.find_config_files("openxr/1/active_runtime.json"))
+			.rev();
 		let override_runtime = override_runtime
 			.into_iter()
 			.chain(possible_config_files)
-			.rev()
 			.find_map(|p| {
 				Some((
 					serde_json::from_str::<RuntimeJSON>(&std::fs::read_to_string(&p).ok()?).ok()?,
