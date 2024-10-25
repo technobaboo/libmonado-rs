@@ -103,6 +103,7 @@ impl Monado {
 		let override_runtime = override_runtime
 			.into_iter()
 			.chain(possible_config_files)
+			.rev()
 			.find_map(|p| {
 				Some((
 					serde_json::from_str::<RuntimeJSON>(&std::fs::read_to_string(&p).ok()?).ok()?,
