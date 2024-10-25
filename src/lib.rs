@@ -95,7 +95,7 @@ impl Monado {
 			}
 		}
 
-		let override_runtime = std::env::var_os("XDG_RUNTIME_JSON").map(PathBuf::from);
+		let override_runtime = std::env::var_os("XR_RUNTIME_JSON").map(PathBuf::from);
 		let possible_config_files = xdg::BaseDirectories::new()
 			.ok()
 			.into_iter()
@@ -103,6 +103,7 @@ impl Monado {
 		let override_runtime = override_runtime
 			.into_iter()
 			.chain(possible_config_files)
+			.rev()
 			.find_map(|p| {
 				Some((
 					serde_json::from_str::<RuntimeJSON>(&std::fs::read_to_string(&p).ok()?).ok()?,
