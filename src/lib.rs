@@ -112,8 +112,14 @@ impl Monado {
 			});
 
 		let Some((runtime_json, mut runtime_path)) = override_runtime else {
-			return Err("Couldn't find the actively running runtime".to_string());
+			return Err("Couldn't find the active runtime json".to_string());
 		};
+
+		// Resolve libmonado relative to the real file, not the symlink.
+		runtime_path = std::fs::canonicalize(runtime_path).map_err(|err| {
+			format!("Failed to canonicalize runtime json path: {}", err.kind())
+		})?;
+
 		runtime_path.pop();
 		let Some(libmonado_path) = runtime_json.runtime.libmonado_path else {
 			return Err("Couldn't find libmonado path in active runtime json".to_string());
