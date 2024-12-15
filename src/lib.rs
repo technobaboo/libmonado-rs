@@ -12,12 +12,10 @@ use flagset::FlagSet;
 use semver::VersionReq;
 use serde::Deserialize;
 use std::env;
-use std::ffi::c_char;
-use std::ffi::CStr;
-use std::ffi::CString;
-use std::ffi::OsStr;
+use std::ffi::*;
 use std::fmt::Debug;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 use std::vec;
@@ -80,6 +78,88 @@ impl From<DeviceRole> for &'static str {
 	}
 }
 
+#[cfg(unix)]
+fn find_system_library(lib: &str) -> Option<PathBuf> {
+	let lib = CString::new(lib).expect("library name isn't a valid C string");
+
+	let handle = unsafe { libc::dlopen(lib.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL) };
+	if handle.is_null() {
+		return None;
+	}
+
+	struct Handle(*mut c_void);
+	impl Drop for Handle {
+		fn drop(&mut self) {
+			unsafe { libc::dlclose(self.0) };
+		}
+	}
+	let handle = Handle(handle);
+
+	#[cfg(target_pointer_width = "32")]
+	use libc::Elf32_Addr as ElfAddr;
+
+	#[cfg(target_pointer_width = "64")]
+	use libc::Elf64_Addr as ElfAddr;
+
+	#[repr(C)]
+	struct LinkMap {
+		addr: ElfAddr,
+		name: *mut c_char,
+		ld: *mut (),
+		next: *mut LinkMap,
+		prev: *mut LinkMap,
+	}
+
+	let mut link_map = std::mem::MaybeUninit::<*mut LinkMap>::zeroed();
+	let r = unsafe {
+		libc::dlinfo(
+			handle.0,
+			libc::RTLD_DI_LINKMAP,
+			link_map.as_mut_ptr() as *mut _,
+		)
+	};
+
+	if r != 0 {
+		return None;
+	}
+
+	let link_map = unsafe { &*link_map.assume_init() };
+	let path = unsafe { CStr::from_ptr(link_map.name) };
+
+	path.to_str().map(PathBuf::from).ok()
+}
+
+#[cfg(not(unix))]
+fn find_system_library(lib: &str) -> Option<PathBuf> {
+	None
+}
+
+fn resolve_runtime_library(lib: &Path, runtime_json_path: &Path) -> Result<PathBuf, String> {
+	// Resolve relative to the real file, not the symlink.
+	let mut runtime_path = std::fs::canonicalize(runtime_json_path)
+		.map_err(|err| format!("Failed to canonicalize runtime json path: {}", err.kind()))?;
+	runtime_path.pop();
+
+	let path = runtime_path.join(lib);
+
+	// Relative paths are always resolved relative to the location of active_runtime.json.
+	if lib.components().count() > 1 {
+		return Ok(path);
+	}
+
+	// Attempt to resolve bare filenames through the system's library search path.
+	let lib = lib
+		.to_str()
+		.ok_or_else(|| format!("Library name contains invalid Unicode characters"))?;
+
+	if let Some(system_path) = find_system_library(&lib) {
+		return Ok(system_path);
+	}
+
+	// Fall back to the relative-path resolution mechanism if we can't locate the library in the system search path.
+	Ok(path)
+}
+
 pub struct Monado {
 	api: Container<MonadoApi>,
 	root: MndRootPtr,
@@ -111,21 +191,16 @@ impl Monado {
 				))
 			});
 
-		let Some((runtime_json, mut runtime_path)) = override_runtime else {
+		let Some((runtime_json, runtime_json_path)) = override_runtime else {
 			return Err("Couldn't find the active runtime json".to_string());
 		};
 
-		// Resolve libmonado relative to the real file, not the symlink.
-		runtime_path = std::fs::canonicalize(runtime_path).map_err(|err| {
-			format!("Failed to canonicalize runtime json path: {}", err.kind())
-		})?;
-
-		runtime_path.pop();
 		let Some(libmonado_path) = runtime_json.runtime.libmonado_path else {
 			return Err("Couldn't find libmonado path in active runtime json".to_string());
 		};
 
-		let path = runtime_path.join(libmonado_path);
+		let path = resolve_runtime_library(&libmonado_path, &runtime_json_path)?;
+
 		Self::create(path).map_err(|e| format!("{e:?}"))
 	}
 	pub fn create<S: AsRef<OsStr>>(libmonado_so: S) -> Result<Self, MndResult> {
