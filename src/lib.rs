@@ -1,9 +1,12 @@
 mod space;
 mod sys;
 
+use color::OpaqueColor;
+use color::Srgb;
 pub use semver::Version;
 pub use space::*;
 pub use sys::ClientState;
+use sys::MndColor;
 pub use sys::MndProperty;
 pub use sys::MndResult;
 
@@ -335,6 +338,28 @@ impl Monado {
 			});
 		}
 		Ok(devices.into_iter().flatten())
+	}
+
+	pub fn set_chroma_key_params(
+		&self,
+		color: OpaqueColor<Srgb>,
+		threshold: f32,
+		smoothing: f32,
+	) -> Result<(), MndResult> {
+		unsafe {
+			self.api
+				.mnd_root_set_chroma_key_params(
+					self.root,
+					MndColor {
+						r: color.components[0],
+						g: color.components[1],
+						b: color.components[2],
+					},
+					threshold,
+					smoothing,
+				)
+				.to_result()
+		}
 	}
 }
 impl Drop for Monado {

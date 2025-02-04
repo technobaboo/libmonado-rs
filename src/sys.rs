@@ -46,6 +46,14 @@ impl Display for MndResult {
 	}
 }
 
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct MndColor {
+	pub r: f32,
+	pub g: f32,
+	pub b: f32,
+}
+
 flagset::flags! {
 	#[doc = " Bitflags for client application state."]
 	pub enum ClientState: u32 {
@@ -171,5 +179,11 @@ pub struct MonadoApi {
 		out_present: *mut bool,
 		out_charging: *mut bool,
 		out_charge: *mut f32,
+	) -> MndResult,
+	mnd_root_set_chroma_key_params: unsafe extern "C" fn(
+		root: MndRootPtr,
+		color: MndColor,
+		threshold: f32,
+		smoothing: f32,
 	) -> MndResult,
 }
