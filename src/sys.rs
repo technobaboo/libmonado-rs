@@ -48,6 +48,14 @@ impl Display for MndResult {
 	}
 }
 
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct MndColorHsv {
+	pub h: f32,
+	pub s: f32,
+	pub v: f32,
+}
+
 flags! {
 	#[doc = " Bitflags for client application state."]
 	pub enum ClientState: u32 {
@@ -281,5 +289,16 @@ pub struct MonadoApi {
 	/// Block certain types of IO for a client. Since API version 1.6.
 	mnd_root_set_client_io_blocks: Option<
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32, block_flags: u32) -> MndResult,
+	>,
+	
+	/// Set chroma key params for any base application opaque projection layer. Since API version 1.6.
+	mnd_root_set_chroma_key_params: Option<
+    	unsafe extern "C" fn(
+			root: MndRootPtr,
+			min: MndColorHsv,
+			max: MndColorHsv,
+			curve: f32,
+			despill: f32,
+		) -> MndResult,
 	>,
 }

@@ -5,6 +5,7 @@ pub use semver::Version;
 pub use space::*;
 pub use sys::BlockFlags;
 pub use sys::ClientState;
+use sys::MndColorHsv;
 pub use sys::MndProperty;
 pub use sys::MndResult;
 
@@ -15,6 +16,7 @@ use std::env;
 use std::ffi::*;
 use std::fmt::Debug;
 use std::fs;
+use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
@@ -412,6 +414,36 @@ impl Monado {
 				})
 				.collect()
 		})
+	}
+
+	pub fn set_chroma_key_params(
+		&self,
+		hue: Range<f32>,
+		saturation: Range<f32>,
+		value: Range<f32>,
+		curve: f32,
+		despill: f32,
+	) -> Result<(), MndResult> {
+		unsafe {
+			self.api
+				.mnd_root_set_chroma_key_params(
+					self.root,
+					MndColorHsv {
+						h: hue.start,
+						s: saturation.start,
+						v: value.start,
+					},
+					MndColorHsv {
+						h: hue.end,
+						s: saturation.end,
+						v: value.end,
+					},
+					curve,
+					despill,
+				)
+				.ok_or(MndResult::ErrorInvalidVersion)?
+				.to_result()
+		}
 	}
 }
 impl Drop for Monado {
