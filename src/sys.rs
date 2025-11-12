@@ -141,10 +141,17 @@ pub struct MonadoApi {
 		mnd_property_t: MndProperty,
 		out_string: *mut *mut ::std::os::raw::c_char,
 	) -> MndResult,
-	mnd_root_get_device_brightness:
-		unsafe extern "C" fn(root: MndRootPtr, out_brightness: *mut c_float) -> MndResult,
-	mnd_root_set_device_brightness:
-		unsafe extern "C" fn(root: MndRootPtr, brightness: c_float, relative: bool) -> MndResult,
+	mnd_root_get_device_brightness: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		out_brightness: *mut c_float,
+	) -> MndResult,
+	mnd_root_set_device_brightness: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		brightness: c_float,
+		relative: bool,
+	) -> MndResult,
 
 	mnd_root_get_reference_space_offset: unsafe extern "C" fn(
 		root: MndRootPtr,

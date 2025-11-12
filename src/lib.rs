@@ -500,7 +500,7 @@ impl Device<'_> {
 			let mut out = c_float::NAN;
 			self.monado
 				.api
-				.mnd_root_get_device_brightness(self.monado.root, &mut out)
+				.mnd_root_get_device_brightness(self.monado.root, self.index, &mut out)
 				.to_result()?;
 			debug_assert_ne!(out, c_float::NAN);
 			Ok(out)
@@ -510,7 +510,7 @@ impl Device<'_> {
 		unsafe {
 			self.monado
 				.api
-				.mnd_root_set_device_brightness(self.monado.root, value, relative)
+				.mnd_root_set_device_brightness(self.monado.root, self.index, value, relative)
 				.to_result()?;
 			Ok(())
 		}
