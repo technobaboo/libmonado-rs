@@ -7,6 +7,7 @@ pub use sys::ClientState;
 pub use sys::MndProperty;
 pub use sys::MndResult;
 
+use core::f32;
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
 use semver::VersionReq;
@@ -493,6 +494,26 @@ impl Device<'_> {
 		}
 
 		unsafe { Ok(CStr::from_ptr(cstr_ptr).to_string_lossy().to_string()) }
+	}
+	pub fn get_device_brightness(&self) -> Result<f32, MndResult> {
+		unsafe {
+			let mut out = c_float::NAN;
+			self.monado
+				.api
+				.mnd_root_get_device_brightness(self.monado.root, &mut out)
+				.to_result()?;
+			debug_assert_ne!(out, c_float::NAN);
+			Ok(out)
+		}
+	}
+	pub fn set_device_brightness(&self, value: f32, relative: bool) -> Result<(), MndResult> {
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_set_device_brightness(self.monado.root, value, relative)
+				.to_result()?;
+			Ok(())
+		}
 	}
 }
 impl Debug for Device<'_> {

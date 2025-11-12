@@ -1,4 +1,5 @@
 use dlopen2::wrapper::WrapperApi;
+use std::ffi::c_float;
 use std::fmt::Debug;
 use std::os::raw::c_char;
 use std::{ffi::c_void, fmt::Display};
@@ -140,6 +141,10 @@ pub struct MonadoApi {
 		mnd_property_t: MndProperty,
 		out_string: *mut *mut ::std::os::raw::c_char,
 	) -> MndResult,
+	mnd_root_get_device_brightness:
+		unsafe extern "C" fn(root: MndRootPtr, out_brightness: *mut c_float) -> MndResult,
+	mnd_root_set_device_brightness:
+		unsafe extern "C" fn(root: MndRootPtr, brightness: c_float, relative: bool) -> MndResult,
 
 	mnd_root_get_reference_space_offset: unsafe extern "C" fn(
 		root: MndRootPtr,
