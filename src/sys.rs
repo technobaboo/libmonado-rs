@@ -17,6 +17,7 @@ pub enum MndResult {
 	ErrorRecenteringNotSupported = -5,
 	ErrorInvalidProperty = -6,
 	ErrorInvalidOperation = -7,
+	ErrorUnsupportedOperation = -8,
 }
 impl MndResult {
 	pub fn to_result(self) -> Result<(), MndResult> {
@@ -67,6 +68,7 @@ pub enum MndProperty {
 	PropertyTrackingOriginU32 = 2,
 	PropertySupportsPositionBool = 3,
 	PropertySupportsOrientationBool = 4,
+	PropertySupportsBrightnessBool = 5,
 }
 
 #[doc = " Opaque type for libmonado state"]
@@ -171,5 +173,16 @@ pub struct MonadoApi {
 		out_present: *mut bool,
 		out_charging: *mut bool,
 		out_charge: *mut f32,
+	) -> MndResult,
+	mnd_root_get_device_brightness: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		out_brightness: *mut f32,
+	) -> MndResult,
+	mnd_root_set_device_brightness: unsafe extern "C" fn(
+		root: MndRootPtr,
+		device_index: u32,
+		brightness: f32,
+		relative: bool,
 	) -> MndResult,
 }

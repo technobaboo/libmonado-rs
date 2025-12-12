@@ -494,6 +494,24 @@ impl Device<'_> {
 
 		unsafe { Ok(CStr::from_ptr(cstr_ptr).to_string_lossy().to_string()) }
 	}
+	pub fn brightness(&self) -> Result<f32, MndResult> {
+		let mut brightness: f32 = Default::default();
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_get_device_brightness(self.monado.root, self.index, &mut brightness)
+				.to_result()?;
+		}
+		Ok(brightness)
+	}
+	pub fn set_brightness(&self, brightness: f32, relative: bool) -> Result<(), MndResult> {
+		unsafe {
+			self.monado
+				.api
+				.mnd_root_set_device_brightness(self.monado.root, self.index, brightness, relative)
+				.to_result()
+		}
+	}
 }
 impl Debug for Device<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
