@@ -150,9 +150,9 @@ fn resolve_runtime_library(lib: &Path, runtime_json_path: &Path) -> Result<PathB
 	// Attempt to resolve bare filenames through the system's library search path.
 	let lib = lib
 		.to_str()
-		.ok_or_else(|| format!("Library name contains invalid Unicode characters"))?;
+		.ok_or_else(|| "Library name contains invalid Unicode characters".to_string())?;
 
-	if let Some(system_path) = find_system_library(&lib) {
+	if let Some(system_path) = find_system_library(lib) {
 		return Ok(system_path);
 	}
 
@@ -160,6 +160,13 @@ fn resolve_runtime_library(lib: &Path, runtime_json_path: &Path) -> Result<PathB
 	Ok(path)
 }
 
+#[derive(Clone)]
+struct DeviceData {
+	index: u32,
+	/// non-unique numeric representation of device name, see: xrt_device_name
+	name_id: u32,
+	name: String,
+}
 pub struct Monado {
 	api: Container<MonadoApi>,
 	root: MndRootPtr,
@@ -227,7 +234,7 @@ impl Monado {
 		}
 	}
 
-	pub fn clients(&self) -> Result<impl IntoIterator<Item = Client<'_>>, MndResult> {
+	fn client_ids(&self) -> Result<impl IntoIterator<Item = u32>, MndResult> {
 		unsafe {
 			self.api
 				.mnd_root_update_client_list(self.root)
@@ -239,7 +246,7 @@ impl Monado {
 				.mnd_root_get_number_clients(self.root, &mut count)
 				.to_result()?
 		};
-		let mut clients: Vec<Option<Client>> = vec::from_elem(None, count as usize);
+		let mut clients: Vec<Option<u32>> = vec::from_elem(None, count as usize);
 		for (index, client) in clients.iter_mut().enumerate() {
 			let mut id = 0;
 			unsafe {
@@ -247,9 +254,38 @@ impl Monado {
 					.mnd_root_get_client_id_at_index(self.root, index as u32, &mut id)
 					.to_result()?
 			};
-			client.replace(Client { monado: self, id });
+			client.replace(id);
 		}
 		Ok(clients.into_iter().flatten())
+	}
+
+	pub fn clients(&self) -> Result<impl IntoIterator<Item = Client>, MndResult> {
+		self.client_ids().map(|res| {
+			res.into_iter().map(|id| Client {
+				id,
+				monado: self,
+			})
+		})
+	}
+
+    #[cfg(feature = "arc")]
+	pub fn clients_arc(this: &std::sync::Arc<Self>) -> Result<Vec<ClientArc>, MndResult> {
+		this.client_ids().map(|res| {
+			res.into_iter().map(|id| ClientArc {
+				id,
+				monado: this.clone(),
+			}).collect()
+		})
+	}
+
+    #[cfg(feature = "rc")]
+	pub fn clients_rc(this: &std::rc::Rc<Self>) -> Result<Vec<ClientRc>, MndResult> {
+		this.client_ids().map(|res| {
+			res.into_iter().map(|id| ClientRc {
+				id,
+				monado: this.clone(),
+			}).collect()
+		})
 	}
 
 	fn device_index_from_role_str(&self, role_name: &str) -> Result<u32, MndResult> {
@@ -304,14 +340,14 @@ impl Monado {
 		self.device_from_role_str(role.into())
 	}
 
-	pub fn devices(&self) -> Result<impl IntoIterator<Item = Device<'_>>, MndResult> {
+	fn devices_data(&self) -> Result<impl IntoIterator<Item = DeviceData>, MndResult> {
 		let mut count = 0;
 		unsafe {
 			self.api
 				.mnd_root_get_device_count(self.root, &mut count)
 				.to_result()?
 		};
-		let mut devices: Vec<Option<Device>> = vec::from_elem(None, count as usize);
+		let mut devices: Vec<Option<DeviceData>> = vec::from_elem(None, count as usize);
 		for (index, device) in devices.iter_mut().enumerate() {
 			let index = index as u32;
 			let mut name_id = 0;
@@ -327,14 +363,54 @@ impl Monado {
 					.map_err(|_| MndResult::ErrorInvalidValue)?
 					.to_owned()
 			};
-			device.replace(Device {
-				monado: self,
+			device.replace(DeviceData {
 				index,
 				name_id,
 				name,
 			});
 		}
 		Ok(devices.into_iter().flatten())
+	}
+
+	pub fn devices(&self) -> Result<impl IntoIterator<Item = Device<'_>>, MndResult> {
+		self.devices_data().map(|res| {
+			res.into_iter().map(|d| Device {
+				index: d.index,
+				name_id: d.name_id,
+				name: d.name,
+				monado: self,
+			})
+		})
+	}
+
+    #[cfg(feature = "arc")]
+	pub fn devices_arc(this: &std::sync::Arc<Self>) -> Result<Vec<DeviceArc>, MndResult> {
+		let data = this.devices_data();
+		data.map(|res| {
+			res.into_iter()
+				.map(|d| DeviceArc {
+					index: d.index,
+					name_id: d.name_id,
+					name: d.name,
+					monado: this.clone(),
+				})
+				.collect()
+		})
+	}
+
+    #[cfg(feature = "rc")]
+	pub fn devices_rc(this: &std::rc::Rc<Self>) -> Result<Vec<DeviceRc>, MndResult> {
+		let data = this.devices_data();
+		data.map(|res| {
+			res.into_iter()
+				.map(|d| DeviceRc {
+					index: d.index,
+					name_id: d.name_id,
+					name: d.name,
+					monado: this.clone(),
+				})
+				.collect()
+		})
 	}
 }
 impl Drop for Monado {
@@ -343,18 +419,20 @@ impl Drop for Monado {
 	}
 }
 
-#[derive(Clone)]
-pub struct Client<'m> {
-	monado: &'m Monado,
-	id: u32,
+pub trait MonadoRef {
+	fn monado(&self) -> &Monado;
 }
-impl Client<'_> {
-	pub fn name(&mut self) -> Result<String, MndResult> {
+
+pub trait ClientLogic: MonadoRef {
+	fn id(&self) -> u32;
+
+	fn name(&mut self) -> Result<String, MndResult> {
 		let mut string = std::ptr::null();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_client_name(self.monado.root, self.id, &mut string)
+				.mnd_root_get_client_name(monado.root, self.id(), &mut string)
 				.to_result()?
 		};
 		let c_string = unsafe { CStr::from_ptr(string) };
@@ -363,39 +441,43 @@ impl Client<'_> {
 			.map_err(|_| MndResult::ErrorInvalidValue)
 			.map(ToString::to_string)
 	}
-	pub fn state(&mut self) -> Result<FlagSet<ClientState>, MndResult> {
+	fn state(&mut self) -> Result<FlagSet<ClientState>, MndResult> {
 		let mut state = 0;
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_client_state(self.monado.root, self.id, &mut state)
+				.mnd_root_get_client_state(monado.root, self.id(), &mut state)
 				.to_result()?
 		};
 		Ok(unsafe { FlagSet::new_unchecked(state) })
 	}
-	pub fn set_primary(&mut self) -> Result<(), MndResult> {
+	fn set_primary(&mut self) -> Result<(), MndResult> {
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_set_client_primary(self.monado.root, self.id)
+				.mnd_root_set_client_primary(monado.root, self.id())
 				.to_result()
 		}
 	}
-	pub fn set_focused(&mut self) -> Result<(), MndResult> {
+	fn set_focused(&mut self) -> Result<(), MndResult> {
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_set_client_focused(self.monado.root, self.id)
+				.mnd_root_set_client_focused(monado.root, self.id())
 				.to_result()
 		}
 	}
-	pub fn set_io_active(&mut self, active: bool) -> Result<(), MndResult> {
+	fn set_io_active(&mut self, active: bool) -> Result<(), MndResult> {
 		let state = self.state()?;
 		if state.contains(ClientState::ClientIoActive) != active {
+			let monado = self.monado();
 			unsafe {
-				self.monado
+				monado
 					.api
-					.mnd_root_toggle_client_io_active(self.monado.root, self.id)
+					.mnd_root_toggle_client_io_active(monado.root, self.id())
 					.to_result()?;
 			}
 		}
@@ -404,24 +486,72 @@ impl Client<'_> {
 }
 
 #[derive(Clone)]
-pub struct Device<'m> {
+pub struct Client<'m> {
 	monado: &'m Monado,
-	pub index: u32,
-	/// non-unique numeric representation of device name, see: xrt_device_name
-	pub name_id: u32,
-	pub name: String,
+	id: u32,
 }
-impl Device<'_> {
-	pub fn battery_status(&self) -> Result<BatteryStatus, MndResult> {
+impl MonadoRef for Client<'_> {
+	fn monado(&self) -> &Monado {
+		self.monado
+	}
+}
+impl ClientLogic for Client<'_> {
+	fn id(&self) -> u32 {
+		self.id
+	}
+}
+
+#[cfg(feature = "rc")]
+#[derive(Clone)]
+pub struct ClientRc {
+	monado: std::rc::Rc<Monado>,
+	id: u32,
+}
+#[cfg(feature = "rc")]
+impl MonadoRef for ClientRc {
+	fn monado(&self) -> &Monado {
+		self.monado.as_ref()
+	}
+}
+#[cfg(feature = "rc")]
+impl ClientLogic for ClientRc {
+	fn id(&self) -> u32 {
+		self.id
+	}
+}
+
+#[cfg(feature = "arc")]
+#[derive(Clone)]
+pub struct ClientArc {
+	monado: std::sync::Arc<Monado>,
+	id: u32,
+}
+#[cfg(feature = "arc")]
+impl MonadoRef for ClientArc {
+	fn monado(&self) -> &Monado {
+		self.monado.as_ref()
+	}
+}
+#[cfg(feature = "arc")]
+impl ClientLogic for ClientArc {
+	fn id(&self) -> u32 {
+		self.id
+	}
+}
+
+pub trait DeviceLogic: MonadoRef {
+	fn index(&self) -> u32;
+	fn battery_status(&self) -> Result<BatteryStatus, MndResult> {
 		let mut present: bool = Default::default();
 		let mut charging: bool = Default::default();
 		let mut charge: f32 = Default::default();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
 				.mnd_root_get_device_battery_status(
-					self.monado.root,
-					self.index,
+					monado.root,
+					self.index(),
 					&mut present,
 					&mut charging,
 					&mut charge,
@@ -434,91 +564,157 @@ impl Device<'_> {
 			charge,
 		})
 	}
-	pub fn serial(&self) -> Result<String, MndResult> {
+	fn serial(&self) -> Result<String, MndResult> {
 		self.get_info_string(MndProperty::PropertySerialString)
 	}
-	pub fn get_info_bool(&self, property: MndProperty) -> Result<bool, MndResult> {
+	fn get_info_bool(&self, property: MndProperty) -> Result<bool, MndResult> {
 		let mut value: bool = Default::default();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_device_info_bool(self.monado.root, self.index, property, &mut value)
+				.mnd_root_get_device_info_bool(monado.root, self.index(), property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
 	}
-	pub fn get_info_u32(&self, property: MndProperty) -> Result<u32, MndResult> {
+	fn get_info_u32(&self, property: MndProperty) -> Result<u32, MndResult> {
 		let mut value: u32 = Default::default();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_device_info_u32(self.monado.root, self.index, property, &mut value)
+				.mnd_root_get_device_info_u32(monado.root, self.index(), property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
 	}
-	pub fn get_info_i32(&self, property: MndProperty) -> Result<i32, MndResult> {
+	fn get_info_i32(&self, property: MndProperty) -> Result<i32, MndResult> {
 		let mut value: i32 = Default::default();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_device_info_i32(self.monado.root, self.index, property, &mut value)
+				.mnd_root_get_device_info_i32(monado.root, self.index(), property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
 	}
-	pub fn get_info_f32(&self, property: MndProperty) -> Result<f32, MndResult> {
+	fn get_info_f32(&self, property: MndProperty) -> Result<f32, MndResult> {
 		let mut value: f32 = Default::default();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_device_info_float(self.monado.root, self.index, property, &mut value)
+				.mnd_root_get_device_info_float(monado.root, self.index(), property, &mut value)
 				.to_result()?
 		}
 		Ok(value)
 	}
-	pub fn get_info_string(&self, property: MndProperty) -> Result<String, MndResult> {
+	fn get_info_string(&self, property: MndProperty) -> Result<String, MndResult> {
 		let mut cstr_ptr = ptr::null_mut();
+		let monado = self.monado();
 
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_device_info_string(
-					self.monado.root,
-					self.index,
-					property,
-					&mut cstr_ptr,
-				)
+				.mnd_root_get_device_info_string(monado.root, self.index(), property, &mut cstr_ptr)
 				.to_result()?
 		}
 
 		unsafe { Ok(CStr::from_ptr(cstr_ptr).to_string_lossy().to_string()) }
 	}
-	pub fn brightness(&self) -> Result<f32, MndResult> {
+	fn brightness(&self) -> Result<f32, MndResult> {
 		let mut brightness: f32 = Default::default();
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_get_device_brightness(self.monado.root, self.index, &mut brightness)
+				.mnd_root_get_device_brightness(monado.root, self.index(), &mut brightness)
 				.to_result()?;
 		}
 		Ok(brightness)
 	}
-	pub fn set_brightness(&self, brightness: f32, relative: bool) -> Result<(), MndResult> {
+	fn set_brightness(&self, brightness: f32, relative: bool) -> Result<(), MndResult> {
+		let monado = self.monado();
 		unsafe {
-			self.monado
+			monado
 				.api
-				.mnd_root_set_device_brightness(self.monado.root, self.index, brightness, relative)
+				.mnd_root_set_device_brightness(monado.root, self.index(), brightness, relative)
 				.to_result()
 		}
 	}
 }
+
+#[derive(Clone)]
+pub struct Device<'m> {
+	monado: &'m Monado,
+	pub index: u32,
+	/// non-unique numeric representation of device name, see: xrt_device_name
+	pub name_id: u32,
+	pub name: String,
+}
+impl Device<'_> {}
 impl Debug for Device<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Device")
 			.field("id", &self.name_id)
 			.field("name", &self.name)
 			.finish()
+	}
+}
+impl MonadoRef for Device<'_> {
+	fn monado(&self) -> &Monado {
+		self.monado
+	}
+}
+impl DeviceLogic for Device<'_> {
+	fn index(&self) -> u32 {
+		self.index
+	}
+}
+
+#[cfg(feature = "rc")]
+#[derive(Clone)]
+pub struct DeviceRc {
+	monado: std::rc::Rc<Monado>,
+	pub index: u32,
+	/// non-unique numeric representation of device name, see: xrt_device_name
+	pub name_id: u32,
+	pub name: String,
+}
+#[cfg(feature = "rc")]
+impl MonadoRef for DeviceRc {
+	fn monado(&self) -> &Monado {
+		self.monado.as_ref()
+	}
+}
+#[cfg(feature = "rc")]
+impl DeviceLogic for DeviceRc {
+	fn index(&self) -> u32 {
+		self.index
+	}
+}
+
+#[cfg(feature = "arc")]
+#[derive(Clone)]
+pub struct DeviceArc {
+	monado: std::sync::Arc<Monado>,
+	pub index: u32,
+	/// non-unique numeric representation of device name, see: xrt_device_name
+	pub name_id: u32,
+	pub name: String,
+}
+#[cfg(feature = "arc")]
+impl MonadoRef for DeviceArc {
+	fn monado(&self) -> &Monado {
+		self.monado.as_ref()
+	}
+}
+#[cfg(feature = "arc")]
+impl DeviceLogic for DeviceArc {
+	fn index(&self) -> u32 {
+		self.index
 	}
 }
 
