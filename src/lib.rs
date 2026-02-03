@@ -3,6 +3,7 @@ mod sys;
 
 pub use semver::Version;
 pub use space::*;
+pub use sys::BlockFlags;
 pub use sys::ClientState;
 pub use sys::MndProperty;
 pub use sys::MndResult;
@@ -480,6 +481,18 @@ pub trait ClientLogic: MonadoRef {
 					.mnd_root_toggle_client_io_active(monado.root, self.id())
 					.to_result()?;
 			}
+		}
+		Ok(())
+	}
+
+	fn set_io_blocks(&mut self, block_flags: FlagSet<BlockFlags>) -> Result<(), MndResult> {
+		let monado = self.monado();
+		unsafe {
+			monado
+				.api
+				.mnd_root_set_client_io_blocks(monado.root, self.id(), block_flags.bits())
+				.ok_or(MndResult::ErrorUnsupportedOperation)?
+				.to_result()?;
 		}
 		Ok(())
 	}
