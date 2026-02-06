@@ -1,4 +1,5 @@
 use dlopen2::wrapper::WrapperApi;
+use flagset::flags;
 use std::fmt::Debug;
 use std::os::raw::c_char;
 use std::{ffi::c_void, fmt::Display};
@@ -47,7 +48,7 @@ impl Display for MndResult {
 	}
 }
 
-flagset::flags! {
+flags! {
 	#[doc = " Bitflags for client application state."]
 	pub enum ClientState: u32 {
 		ClientPrimaryApp = 1,
@@ -56,6 +57,22 @@ flagset::flags! {
 		ClientSessionFocused = 8,
 		ClientSessionOverlay = 16,
 		ClientIoActive = 32,
+		ClientPosesBlocked = 64,
+		ClientHtBlocked = 128,
+		ClientInputsBlocked = 256,
+		ClientOutputsBlocked = 512,
+	}
+}
+
+flags! {
+	#[doc = " Bitflags for IO blocking."]
+	#[repr(u32)]
+	pub enum BlockFlags: u32 {
+		None = 0,
+		BlockPoses = 1,
+		BlockHt = 2,
+		BlockInputs = 4,
+		BlockOutputs = 8,
 	}
 }
 
@@ -98,6 +115,9 @@ pub struct MonadoApi {
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32) -> MndResult,
 	mnd_root_toggle_client_io_active:
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32) -> MndResult,
+	mnd_root_set_client_io_blocks: Option<
+		unsafe extern "C" fn(root: MndRootPtr, client_id: u32, block_flags: u32) -> MndResult,
+	>,
 	mnd_root_get_device_count:
 		unsafe extern "C" fn(root: MndRootPtr, out_device_count: *mut u32) -> MndResult,
 	mnd_root_get_device_info: unsafe extern "C" fn(
