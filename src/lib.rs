@@ -24,7 +24,7 @@ use sys::MndRootPtr;
 use sys::MonadoApi;
 
 fn crate_api_version() -> VersionReq {
-	VersionReq::parse("^1.6.0").unwrap()
+	VersionReq::parse("^1.3.0").unwrap()
 }
 fn get_api_version(api: &Container<MonadoApi>) -> Version {
 	let mut major = 0;
