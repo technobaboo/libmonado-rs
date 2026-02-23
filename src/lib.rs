@@ -16,6 +16,7 @@ use std::env;
 use std::ffi::*;
 use std::fmt::Debug;
 use std::fs;
+use std::os::fd::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
@@ -235,6 +236,19 @@ impl Monado {
 		}
 	}
 
+	pub fn push_metrics_fd(
+		&self,
+		fd: std::os::fd::BorrowedFd,
+		early_flush: bool,
+	) -> Result<(), MndResult> {
+		unsafe {
+			self.api
+				.mnd_root_push_metrics_fd(self.root, fd.as_raw_fd(), early_flush)
+				.ok_or(MndResult::ErrorUnsupportedOperation)?
+				.to_result()
+		}
+	}
+
 	fn client_ids(&self) -> Result<impl IntoIterator<Item = u32>, MndResult> {
 		unsafe {
 			self.api
@@ -261,31 +275,31 @@ impl Monado {
 	}
 
 	pub fn clients(&self) -> Result<impl IntoIterator<Item = Client>, MndResult> {
-		self.client_ids().map(|res| {
-			res.into_iter().map(|id| Client {
-				id,
-				monado: self,
-			})
-		})
+		self.client_ids()
+			.map(|res| res.into_iter().map(|id| Client { id, monado: self }))
 	}
 
-    #[cfg(feature = "arc")]
+	#[cfg(feature = "arc")]
 	pub fn clients_arc(this: &std::sync::Arc<Self>) -> Result<Vec<ClientArc>, MndResult> {
 		this.client_ids().map(|res| {
-			res.into_iter().map(|id| ClientArc {
-				id,
-				monado: this.clone(),
-			}).collect()
+			res.into_iter()
+				.map(|id| ClientArc {
+					id,
+					monado: this.clone(),
+				})
+				.collect()
 		})
 	}
 
-    #[cfg(feature = "rc")]
+	#[cfg(feature = "rc")]
 	pub fn clients_rc(this: &std::rc::Rc<Self>) -> Result<Vec<ClientRc>, MndResult> {
 		this.client_ids().map(|res| {
-			res.into_iter().map(|id| ClientRc {
-				id,
-				monado: this.clone(),
-			}).collect()
+			res.into_iter()
+				.map(|id| ClientRc {
+					id,
+					monado: this.clone(),
+				})
+				.collect()
 		})
 	}
 
@@ -384,7 +398,7 @@ impl Monado {
 		})
 	}
 
-    #[cfg(feature = "arc")]
+	#[cfg(feature = "arc")]
 	pub fn devices_arc(this: &std::sync::Arc<Self>) -> Result<Vec<DeviceArc>, MndResult> {
 		let data = this.devices_data();
 		data.map(|res| {
@@ -399,7 +413,7 @@ impl Monado {
 		})
 	}
 
-    #[cfg(feature = "rc")]
+	#[cfg(feature = "rc")]
 	pub fn devices_rc(this: &std::rc::Rc<Self>) -> Result<Vec<DeviceRc>, MndResult> {
 		let data = this.devices_data();
 		data.map(|res| {
