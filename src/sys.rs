@@ -205,4 +205,6 @@ pub struct MonadoApi {
 		brightness: f32,
 		relative: bool,
 	) -> MndResult,
+	mnd_root_push_metrics_fd:
+		Option<unsafe extern "C" fn(root: MndRootPtr, fd: i32, early_flush: bool) -> MndResult>,
 }
