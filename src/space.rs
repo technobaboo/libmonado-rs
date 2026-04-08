@@ -107,6 +107,7 @@ impl Monado {
 		unsafe {
 			self.api
 				.mnd_root_get_tracking_origin_count(self.root, &mut count)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?
 		};
 		let mut tracking_origins: Vec<Option<TrackingOrigin>> =
@@ -116,6 +117,7 @@ impl Monado {
 			unsafe {
 				self.api
 					.mnd_root_get_tracking_origin_name(self.root, id as u32, &mut c_name)
+					.ok_or(MndResult::ErrorInvalidVersion)?
 					.to_result()?
 			};
 			let name = unsafe {
@@ -141,6 +143,7 @@ impl Monado {
 		unsafe {
 			self.api
 				.mnd_root_get_reference_space_offset(self.root, space_type, &mut mnd_pose)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?;
 		}
 		Ok(mnd_pose.into())
@@ -153,6 +156,7 @@ impl Monado {
 		unsafe {
 			self.api
 				.mnd_root_set_reference_space_offset(self.root, space_type, &pose.into())
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()
 		}
 	}
@@ -171,6 +175,7 @@ impl TrackingOrigin<'_> {
 			self.monado
 				.api
 				.mnd_root_get_tracking_origin_offset(self.monado.root, self.id, &mut mnd_pose)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?;
 		}
 		Ok(mnd_pose.into())
@@ -180,6 +185,7 @@ impl TrackingOrigin<'_> {
 			self.monado
 				.api
 				.mnd_root_set_tracking_origin_offset(self.monado.root, self.id, &pose.into())
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()
 		}
 	}

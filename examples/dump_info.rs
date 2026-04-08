@@ -1,5 +1,5 @@
 use clap::Parser;
-use libmonado::{Monado, ClientLogic, DeviceLogic};
+use libmonado::{ClientLogic, DeviceLogic, Monado};
 use std::path::PathBuf;
 
 #[derive(Parser)]

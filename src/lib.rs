@@ -10,7 +10,6 @@ pub use sys::MndResult;
 
 use dlopen2::wrapper::Container;
 use flagset::FlagSet;
-use semver::VersionReq;
 use serde::Deserialize;
 use std::env;
 use std::ffi::*;
@@ -19,13 +18,14 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
+use std::sync::LazyLock;
 use std::vec;
 use sys::MndRootPtr;
 use sys::MonadoApi;
 
-fn crate_api_version() -> VersionReq {
-	VersionReq::parse("^1.3.0").unwrap()
-}
+pub static CRATE_VERSION: LazyLock<Version> =
+	LazyLock::new(|| Version::parse(env!("CARGO_PKG_VERSION")).unwrap());
+
 fn get_api_version(api: &Container<MonadoApi>) -> Version {
 	let mut major = 0;
 	let mut minor = 0;
@@ -171,6 +171,7 @@ struct DeviceData {
 pub struct Monado {
 	api: Container<MonadoApi>,
 	root: MndRootPtr,
+	version: Version,
 }
 impl Monado {
 	pub fn auto_connect() -> Result<Self, String> {
@@ -214,23 +215,22 @@ impl Monado {
 	pub fn create<S: AsRef<OsStr>>(libmonado_so: S) -> Result<Self, MndResult> {
 		let api = unsafe { Container::<MonadoApi>::load(libmonado_so) }
 			.map_err(|_| MndResult::ErrorConnectingFailed)?;
-		if !crate_api_version().matches(&get_api_version(&api)) {
-			return Err(MndResult::ErrorInvalidVersion);
-		}
+		let version = get_api_version(&api);
 		let mut root = std::ptr::null_mut();
 		unsafe {
 			api.mnd_root_create(&mut root).to_result()?;
 		}
-		Ok(Monado { api, root })
+		Ok(Monado { api, root, version })
 	}
 
 	pub fn get_api_version(&self) -> Version {
-		get_api_version(&self.api)
+		self.version.clone()
 	}
 	pub fn recenter_local_spaces(&self) -> Result<(), MndResult> {
 		unsafe {
 			self.api
 				.mnd_root_recenter_local_spaces(self.root)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()
 		}
 	}
@@ -260,32 +260,32 @@ impl Monado {
 		Ok(clients.into_iter().flatten())
 	}
 
-	pub fn clients(&self) -> Result<impl IntoIterator<Item = Client>, MndResult> {
-		self.client_ids().map(|res| {
-			res.into_iter().map(|id| Client {
-				id,
-				monado: self,
-			})
-		})
+	pub fn clients<'m>(&'m self) -> Result<impl IntoIterator<Item = Client<'m>>, MndResult> {
+		self.client_ids()
+			.map(|res| res.into_iter().map(|id| Client { id, monado: self }))
 	}
 
-    #[cfg(feature = "arc")]
+	#[cfg(feature = "arc")]
 	pub fn clients_arc(this: &std::sync::Arc<Self>) -> Result<Vec<ClientArc>, MndResult> {
 		this.client_ids().map(|res| {
-			res.into_iter().map(|id| ClientArc {
-				id,
-				monado: this.clone(),
-			}).collect()
+			res.into_iter()
+				.map(|id| ClientArc {
+					id,
+					monado: this.clone(),
+				})
+				.collect()
 		})
 	}
 
-    #[cfg(feature = "rc")]
+	#[cfg(feature = "rc")]
 	pub fn clients_rc(this: &std::rc::Rc<Self>) -> Result<Vec<ClientRc>, MndResult> {
 		this.client_ids().map(|res| {
-			res.into_iter().map(|id| ClientRc {
-				id,
-				monado: this.clone(),
-			}).collect()
+			res.into_iter()
+				.map(|id| ClientRc {
+					id,
+					monado: this.clone(),
+				})
+				.collect()
 		})
 	}
 
@@ -384,7 +384,7 @@ impl Monado {
 		})
 	}
 
-    #[cfg(feature = "arc")]
+	#[cfg(feature = "arc")]
 	pub fn devices_arc(this: &std::sync::Arc<Self>) -> Result<Vec<DeviceArc>, MndResult> {
 		let data = this.devices_data();
 		data.map(|res| {
@@ -399,7 +399,7 @@ impl Monado {
 		})
 	}
 
-    #[cfg(feature = "rc")]
+	#[cfg(feature = "rc")]
 	pub fn devices_rc(this: &std::rc::Rc<Self>) -> Result<Vec<DeviceRc>, MndResult> {
 		let data = this.devices_data();
 		data.map(|res| {
@@ -491,7 +491,7 @@ pub trait ClientLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_set_client_io_blocks(monado.root, self.id(), block_flags.bits())
-				.ok_or(MndResult::ErrorUnsupportedOperation)?
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?;
 		}
 		Ok(())
@@ -569,6 +569,7 @@ pub trait DeviceLogic: MonadoRef {
 					&mut charging,
 					&mut charge,
 				)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?;
 		}
 		Ok(BatteryStatus {
@@ -587,6 +588,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_get_device_info_bool(monado.root, self.index(), property, &mut value)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?
 		}
 		Ok(value)
@@ -598,6 +600,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_get_device_info_u32(monado.root, self.index(), property, &mut value)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?
 		}
 		Ok(value)
@@ -609,6 +612,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_get_device_info_i32(monado.root, self.index(), property, &mut value)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?
 		}
 		Ok(value)
@@ -620,6 +624,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_get_device_info_float(monado.root, self.index(), property, &mut value)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?
 		}
 		Ok(value)
@@ -632,6 +637,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_get_device_info_string(monado.root, self.index(), property, &mut cstr_ptr)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?
 		}
 
@@ -644,6 +650,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_get_device_brightness(monado.root, self.index(), &mut brightness)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()?;
 		}
 		Ok(brightness)
@@ -654,6 +661,7 @@ pub trait DeviceLogic: MonadoRef {
 			monado
 				.api
 				.mnd_root_set_device_brightness(monado.root, self.index(), brightness, relative)
+				.ok_or(MndResult::ErrorInvalidVersion)?
 				.to_result()
 		}
 	}
