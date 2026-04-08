@@ -93,116 +93,193 @@ pub type MndRootPtr = *mut c_void;
 
 #[derive(WrapperApi)]
 pub struct MonadoApi {
+	// === API version 1.0 ===
+
+	/// Get the API version (not Monado itself).
 	mnd_api_get_version:
 		unsafe extern "C" fn(out_major: *mut u32, out_minor: *mut u32, out_patch: *mut u32),
+	/// Create libmonado state and connect to service.
 	mnd_root_create: unsafe extern "C" fn(out_root: *mut MndRootPtr) -> MndResult,
+	/// Destroy libmonado state, disconnecting from the service.
 	mnd_root_destroy: unsafe extern "C" fn(out_root: *mut MndRootPtr),
+	/// Update the local cached copy of the client list.
 	mnd_root_update_client_list: unsafe extern "C" fn(root: MndRootPtr) -> MndResult,
+	/// Get the number of active clients.
 	mnd_root_get_number_clients:
 		unsafe extern "C" fn(root: MndRootPtr, out_num: *mut u32) -> MndResult,
+	/// Get the id from the current client list at the given index.
 	mnd_root_get_client_id_at_index:
 		unsafe extern "C" fn(root: MndRootPtr, index: u32, out_client_id: *mut u32) -> MndResult,
+	/// Get the name of the client with the given id.
 	mnd_root_get_client_name: unsafe extern "C" fn(
 		root: MndRootPtr,
 		client_id: u32,
 		out_name: *mut *const ::std::os::raw::c_char,
 	) -> MndResult,
+	/// Get the state flags of the client with the given id.
 	mnd_root_get_client_state:
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32, out_flags: *mut u32) -> MndResult,
+	/// Set the client with the given id as "primary".
 	mnd_root_set_client_primary:
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32) -> MndResult,
+	/// Set the client with the given id as "focused".
 	mnd_root_set_client_focused:
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32) -> MndResult,
+	/// Toggle IO activity for a client. Deprecated in version 1.6.
 	mnd_root_toggle_client_io_active:
 		unsafe extern "C" fn(root: MndRootPtr, client_id: u32) -> MndResult,
-	mnd_root_set_client_io_blocks: Option<
-		unsafe extern "C" fn(root: MndRootPtr, client_id: u32, block_flags: u32) -> MndResult,
-	>,
+	/// Get the number of devices.
 	mnd_root_get_device_count:
 		unsafe extern "C" fn(root: MndRootPtr, out_device_count: *mut u32) -> MndResult,
+	/// Get device info at the given index. Deprecated in version 1.2.
 	mnd_root_get_device_info: unsafe extern "C" fn(
 		root: MndRootPtr,
 		device_index: u32,
 		out_index: *mut u32,
 		out_dev_name: *mut *const ::std::os::raw::c_char,
 	) -> MndResult,
+	/// Get the device index associated with a given role name.
 	mnd_root_get_device_from_role: unsafe extern "C" fn(
 		root: MndRootPtr,
 		role_name: *const ::std::os::raw::c_char,
 		out_index: *mut i32,
 	) -> MndResult,
-	mnd_root_recenter_local_spaces: unsafe extern "C" fn(root: MndRootPtr) -> MndResult,
-	mnd_root_get_device_info_bool: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		mnd_property_t: MndProperty,
-		out_bool: *mut bool,
-	) -> MndResult,
-	mnd_root_get_device_info_i32: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		mnd_property_t: MndProperty,
-		out_i32: *mut i32,
-	) -> MndResult,
-	mnd_root_get_device_info_u32: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		mnd_property_t: MndProperty,
-		out_u32: *mut u32,
-	) -> MndResult,
-	mnd_root_get_device_info_float: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		mnd_property_t: MndProperty,
-		out_float: *mut f32,
-	) -> MndResult,
-	mnd_root_get_device_info_string: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		mnd_property_t: MndProperty,
-		out_string: *mut *mut ::std::os::raw::c_char,
-	) -> MndResult,
 
-	mnd_root_get_reference_space_offset: unsafe extern "C" fn(
-		root: MndRootPtr,
-		type_: ReferenceSpaceType,
-		out_offset: *mut MndPose,
-	) -> MndResult,
-	mnd_root_set_reference_space_offset: unsafe extern "C" fn(
-		root: MndRootPtr,
-		type_: ReferenceSpaceType,
-		offset: *const MndPose,
-	) -> MndResult,
-	mnd_root_get_tracking_origin_offset: unsafe extern "C" fn(
-		root: MndRootPtr,
-		origin_id: u32,
-		out_offset: *mut MndPose,
-	) -> MndResult,
-	mnd_root_set_tracking_origin_offset:
+	// === API version 1.1 ===
+
+	/// Trigger a recenter of the local spaces. Since API version 1.1.
+	mnd_root_recenter_local_spaces: Option<
+		unsafe extern "C" fn(root: MndRootPtr) -> MndResult,
+	>,
+
+	// === API version 1.2 ===
+
+	/// Get boolean property for a device. Since API version 1.2.
+	mnd_root_get_device_info_bool: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			mnd_property_t: MndProperty,
+			out_bool: *mut bool,
+		) -> MndResult,
+	>,
+	/// Get i32 property for a device. Since API version 1.2.
+	mnd_root_get_device_info_i32: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			mnd_property_t: MndProperty,
+			out_i32: *mut i32,
+		) -> MndResult,
+	>,
+	/// Get u32 property for a device. Since API version 1.2.
+	mnd_root_get_device_info_u32: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			mnd_property_t: MndProperty,
+			out_u32: *mut u32,
+		) -> MndResult,
+	>,
+	/// Get float property for a device. Since API version 1.2.
+	mnd_root_get_device_info_float: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			mnd_property_t: MndProperty,
+			out_float: *mut f32,
+		) -> MndResult,
+	>,
+	/// Get string property for a device. Since API version 1.2.
+	mnd_root_get_device_info_string: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			mnd_property_t: MndProperty,
+			out_string: *mut *mut ::std::os::raw::c_char,
+		) -> MndResult,
+	>,
+
+	// === API version 1.3 ===
+
+	/// Get the current offset of a reference space. Since API version 1.3.
+	mnd_root_get_reference_space_offset: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			type_: ReferenceSpaceType,
+			out_offset: *mut MndPose,
+		) -> MndResult,
+	>,
+	/// Apply an offset to a reference space. Since API version 1.3.
+	mnd_root_set_reference_space_offset: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			type_: ReferenceSpaceType,
+			offset: *const MndPose,
+		) -> MndResult,
+	>,
+	/// Read the current offset of a tracking origin. Since API version 1.3.
+	mnd_root_get_tracking_origin_offset: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			origin_id: u32,
+			out_offset: *mut MndPose,
+		) -> MndResult,
+	>,
+	/// Apply an offset to a tracking origin. Since API version 1.3.
+	mnd_root_set_tracking_origin_offset: Option<
 		unsafe extern "C" fn(root: MndRootPtr, origin_id: u32, offset: *const MndPose) -> MndResult,
-	mnd_root_get_tracking_origin_count:
+	>,
+	/// Get the number of tracking origins. Since API version 1.3.
+	mnd_root_get_tracking_origin_count: Option<
 		unsafe extern "C" fn(root: MndRootPtr, out_track_count: *mut u32) -> MndResult,
-	mnd_root_get_tracking_origin_name: unsafe extern "C" fn(
-		root: MndRootPtr,
-		origin_id: u32,
-		out_string: *mut *const c_char,
-	) -> MndResult,
-	mnd_root_get_device_battery_status: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		out_present: *mut bool,
-		out_charging: *mut bool,
-		out_charge: *mut f32,
-	) -> MndResult,
-	mnd_root_get_device_brightness: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		out_brightness: *mut f32,
-	) -> MndResult,
-	mnd_root_set_device_brightness: unsafe extern "C" fn(
-		root: MndRootPtr,
-		device_index: u32,
-		brightness: f32,
-		relative: bool,
-	) -> MndResult,
+	>,
+	/// Get the name of a tracking origin. Since API version 1.3.
+	mnd_root_get_tracking_origin_name: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			origin_id: u32,
+			out_string: *mut *const c_char,
+		) -> MndResult,
+	>,
+
+	// === API version 1.4 ===
+
+	/// Get battery status of a device. Since API version 1.4.
+	mnd_root_get_device_battery_status: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			out_present: *mut bool,
+			out_charging: *mut bool,
+			out_charge: *mut f32,
+		) -> MndResult,
+	>,
+
+	// === API version 1.5 ===
+
+	/// Get current brightness of a display device. Since API version 1.5.
+	mnd_root_get_device_brightness: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			out_brightness: *mut f32,
+		) -> MndResult,
+	>,
+	/// Set the display brightness. Since API version 1.5.
+	mnd_root_set_device_brightness: Option<
+		unsafe extern "C" fn(
+			root: MndRootPtr,
+			device_index: u32,
+			brightness: f32,
+			relative: bool,
+		) -> MndResult,
+	>,
+
+	// === API version 1.6 ===
+
+	/// Block certain types of IO for a client. Since API version 1.6.
+	mnd_root_set_client_io_blocks: Option<
+		unsafe extern "C" fn(root: MndRootPtr, client_id: u32, block_flags: u32) -> MndResult,
+	>,
 }
