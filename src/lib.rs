@@ -13,8 +13,10 @@ use dlopen2::wrapper::Container;
 use flagset::FlagSet;
 use serde::Deserialize;
 use std::env;
+use std::error::Error;
 use std::ffi::*;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fs;
 use std::ops::Range;
 use std::path::Path;
@@ -137,10 +139,13 @@ fn find_system_library(lib: &str) -> Option<PathBuf> {
 	None
 }
 
-fn resolve_runtime_library(lib: &Path, runtime_json_path: &Path) -> Result<PathBuf, String> {
+fn resolve_runtime_library(
+	lib: &Path,
+	runtime_json_path: &Path,
+) -> Result<PathBuf, MonadoConnectError> {
 	// Resolve relative to the real file, not the symlink.
 	let mut runtime_path = std::fs::canonicalize(runtime_json_path)
-		.map_err(|err| format!("Failed to canonicalize runtime json path: {}", err.kind()))?;
+		.map_err(MonadoConnectError::FailedToCanonicalizeActiveRuntime)?;
 	runtime_path.pop();
 
 	let path = runtime_path.join(lib);
@@ -151,9 +156,8 @@ fn resolve_runtime_library(lib: &Path, runtime_json_path: &Path) -> Result<PathB
 	}
 
 	// Attempt to resolve bare filenames through the system's library search path.
-	let lib = lib
-		.to_str()
-		.ok_or_else(|| "Library name contains invalid Unicode characters".to_string())?;
+    // TODO: remove the need for this, non utf8 paths may be valid.
+	let lib = lib.to_str().ok_or(MonadoConnectError::LibraryPathNotUtf8)?;
 
 	if let Some(system_path) = find_system_library(lib) {
 		return Ok(system_path);
@@ -175,14 +179,50 @@ pub struct Monado {
 	root: MndRootPtr,
 	version: Version,
 }
+#[derive(Debug)]
+pub enum MonadoConnectError {
+	InvalidLibMonadoPath,
+	UnableToFindActiveRuntime,
+	NoLibMonadoPathInActiveRuntime,
+	FailedToCanonicalizeActiveRuntime(std::io::Error),
+	LibraryPathNotUtf8,
+	FailedToLoadLibMonado(dlopen2::Error),
+	CreateRootFailed(MndResult),
+}
+impl Error for MonadoConnectError {}
+impl Display for MonadoConnectError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			MonadoConnectError::InvalidLibMonadoPath => {
+				write!(f, "LIBMONADO_PATH does not point to a valid file")
+			}
+			MonadoConnectError::UnableToFindActiveRuntime => {
+				write!(f, "Couldn't find the active runtime json")
+			}
+			MonadoConnectError::NoLibMonadoPathInActiveRuntime => {
+				write!(f, "Couldn't find libmonado path in active runtime json")
+			}
+			MonadoConnectError::FailedToCanonicalizeActiveRuntime(err) => {
+				write!(f, "Failed to canonicalize runtime json path: {err}")
+			}
+			MonadoConnectError::LibraryPathNotUtf8 => {
+				write!(f, "Library name contains invalid Unicode characters")
+			}
+			MonadoConnectError::FailedToLoadLibMonado(error) => {
+				write!(f, "Failed to load libmonado: {error}")
+			}
+			MonadoConnectError::CreateRootFailed(mnd_result) => {
+				write!(f, "Failed to create libmonado root: {mnd_result}")
+			}
+		}
+	}
+}
 impl Monado {
-	pub fn auto_connect() -> Result<Self, String> {
+	pub fn auto_connect() -> Result<Self, MonadoConnectError> {
 		if let Ok(libmonado_path) = env::var("LIBMONADO_PATH") {
 			match fs::metadata(&libmonado_path) {
-				Ok(metadata) if metadata.is_file() => {
-					return Self::create(libmonado_path).map_err(|e| format!("{e:?}"))
-				}
-				_ => return Err("LIBMONADO_PATH does not point to a valid file".into()),
+				Ok(metadata) if metadata.is_file() => return Self::create(libmonado_path),
+				_ => return Err(MonadoConnectError::InvalidLibMonadoPath),
 			}
 		}
 
@@ -203,24 +243,26 @@ impl Monado {
 			});
 
 		let Some((runtime_json, runtime_json_path)) = override_runtime else {
-			return Err("Couldn't find the active runtime json".to_string());
+			return Err(MonadoConnectError::UnableToFindActiveRuntime);
 		};
 
 		let Some(libmonado_path) = runtime_json.runtime.libmonado_path else {
-			return Err("Couldn't find libmonado path in active runtime json".to_string());
+			return Err(MonadoConnectError::NoLibMonadoPathInActiveRuntime);
 		};
 
 		let path = resolve_runtime_library(&libmonado_path, &runtime_json_path)?;
 
-		Self::create(path).map_err(|e| format!("{e:?}"))
+		Self::create(path)
 	}
-	pub fn create<S: AsRef<OsStr>>(libmonado_so: S) -> Result<Self, MndResult> {
+	pub fn create<S: AsRef<OsStr>>(libmonado_so: S) -> Result<Self, MonadoConnectError> {
 		let api = unsafe { Container::<MonadoApi>::load(libmonado_so) }
-			.map_err(|_| MndResult::ErrorConnectingFailed)?;
+			.map_err(MonadoConnectError::FailedToLoadLibMonado)?;
 		let version = get_api_version(&api);
 		let mut root = std::ptr::null_mut();
 		unsafe {
-			api.mnd_root_create(&mut root).to_result()?;
+			api.mnd_root_create(&mut root)
+				.to_result()
+				.map_err(MonadoConnectError::CreateRootFailed)?;
 		}
 		Ok(Monado { api, root, version })
 	}
